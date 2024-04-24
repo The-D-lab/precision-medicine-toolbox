@@ -160,6 +160,7 @@ class ToolBox(DataSet):
             region_of_interest: If you know exact name of the ROI you want to extract, then write it with the ! character in front, eg. region_of_interest = !gtv1 , if you want to extract all the GTVs in the rtstructure eg. gtv1, gtv2, gtv_whatever, then just specify the stem word eg. region_of_interest = gtv, default value is region_of_interest ='all' , which means that all ROIs in rtstruct will be extracted.
             image_type: Data type of the input image.
         '''
+        
         if self._data_type == 'dcm':
 
             if self._image_only:
@@ -222,48 +223,24 @@ class ToolBox(DataSet):
         - output_dicom_dir: Directory where the new DICOM files will be saved.
         """
         # Read the NRRD file
-        nrrd_image = sitk.ReadImage(nrrd_path)
-        nrrd_array = sitk.GetArrayFromImage(nrrd_image)
+        img_sitk = sitk.ReadImage(nrrd_path)
+        # Convert the data type of the image array to int16, typically needed for medical images        
+        img_arr = sitk.GetArrayFromImage(img_sitk)
+        sitk_img = sitk.GetImageFromArray(img_arr)
 
-        # Load one of the original DICOM files to use as a template
-        dicom_template = None
-        for root, dirs, files in os.walk(original_dicom_dir):
-            for file in files:
-                if file.endswith('.dcm'):
-                    dicom_template = pydicom.dcmread(os.path.join(root, file))
-                    break
-            if dicom_template:
-                break
+        # Copy spacing, origin, and direction from the original image
+        sitk_img.SetSpacing(img_sitk.GetSpacing())
+        sitk_img.SetOrigin(img_sitk.GetOrigin())
+        sitk_img.SetDirection(img_sitk.GetDirection())
 
-        if not dicom_template:
-            raise FileNotFoundError("No DICOM template found in the specified directory.")
-
-        # Ensure the output directory exists
-        if not os.path.exists(output_dicom_dir):
-            os.makedirs(output_dicom_dir)
-
-        # Generate DICOM files from NRRD slices
-        for i, slice in enumerate(nrrd_array):
-            # Create a new DICOM file based on the template
-            new_dicom = FileDataset('', {}, file_meta=Dataset(), preamble=b"\0" * 128)
-            new_dicom.update((tag, dicom_template.get(tag)) for tag in dicom_template.dir() if hasattr(new_dicom, tag))
-
-            # Set pixel data
-            new_dicom.PixelData = slice.tobytes()
-            new_dicom.Rows, new_dicom.Columns = slice.shape
-
-            # Update instance specific tags
-            new_dicom.InstanceNumber = str(i + 1)
-            new_dicom.ImagePositionPatient[2] = dicom_template.ImagePositionPatient[2] + i * dicom_template.SliceThickness
-            new_dicom.SOPInstanceUID = pydicom.uid.generate_uid()
-            new_dicom.SeriesInstanceUID = pydicom.uid.generate_uid()
-            new_dicom.StudyInstanceUID = dicom_template.StudyInstanceUID
-            new_dicom.SeriesNumber = dicom_template.SeriesNumber
-            new_dicom.AcquisitionNumber = dicom_template.AcquisitionNumber
-
-            # Save the new DICOM file
-            output_path = os.path.join(output_dicom_dir, f"slice_{i + 1}.dcm")
-            new_dicom.save_as(output_path)
+        # Set necessary DICOM metadata
+        sitk_img.SetMetaData("0008|0016", "1.2.840.10008.5.1.4.1.1.2")  # SOP Class UID, e.g., CT Image Storage
+        sitk_img.SetMetaData("0008|103E", "Image converted from NRRD")   # Series Description
+        
+        # Save the new DICOM file
+        output_path = os.path.join(output_dicom_dir, f"slice_{i + 1}.dcm")
+        # Write the DICOM file
+        sitk.WriteImage(sitk_img, output_path)
 
         print(f"Conversion complete. DICOM files saved to {output_dicom_dir}")    
 
@@ -882,7 +859,7 @@ class ToolBox(DataSet):
     def __preprocessing_function(self, img, mask, ref_img, z_score, norm_coeff, hist_match, hist_equalize, binning,
                                  percentile_scaling, corr_bias_field, window_filtering_params,
                                  subcateneus_fat, fat_value, reshape, to_shape,
-                                 verbosity, visualize):
+                                 verbosity, visualize, clahe_apply=False, clahe_clip_limit=2.0, clahe_tile_grid_size = (8, 8)):
 
         if verbosity:
             unique_number_of_intensity = np.unique(img.flatten())
@@ -997,6 +974,13 @@ class ToolBox(DataSet):
                 plt.title('Z-score normalization applied')
                 plt.show()
 
+        if clahe_apply:
+            try:
+                clahe = cv2.createCLAHE(clipLimit=clahe_clip_limit, tileGridSize=clahe_tile_grid_size)
+                img =  clahe.apply(img)
+            except:
+                print("CLAHE normalization only works for 2D images. Check if the image is 2D.")
+        
         if reshape and to_shape:
             if to_shape.shape==3:
                 img = self.__resize_3d_img(img)
@@ -1007,7 +991,7 @@ class ToolBox(DataSet):
                     plt.imshow(img[int(len(img) / 2.), ...], cmap='bone')
                     plt.title('Reshaped image')
                     plt.show()
-
+                    
         return img
 
 
