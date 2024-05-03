@@ -15,6 +15,7 @@ import shutil
 
 import matplotlib.pyplot as plt
 
+
 # initialising objects
 def test_toolbox_init():
     print(" test_toolbox_init")
@@ -24,6 +25,7 @@ def test_toolbox_init():
     data_dcms = ToolBox(**parameters)
 
     assert len(data_dcms) > 0
+
 
 def test_analysisbox_init():
     parameters = {
@@ -35,12 +37,12 @@ def test_analysisbox_init():
     }
     fs = AnalysisBox(**parameters)
 
-    #pickle.dump(fs, file=open("data/test/fs.pickle", "wb"))
+    # pickle.dump(fs, file=open("data/test/fs.pickle", "wb"))
 
     assert len(fs._feature_outcome_dataframe) > 0
 
-def test_generateresultbox_init():
 
+def test_generateresultbox_init():
     train_labels = [int(np.round(np.random.uniform(low=0, high=1))) for i in range(100)]
     train_predictions = [np.random.uniform(low=0, high=1) for i in range(100)]
     test_labels = [int(np.round(np.random.uniform(low=0, high=1))) for i in range(50)]
@@ -55,14 +57,17 @@ def test_generateresultbox_init():
                                           external_labels=external_labels,
                                           external_predictions=external_predictions)
 
-    train_labels_present = len(result_generation._train_labels)>0
+    train_labels_present = len(result_generation._train_labels) > 0
     train_predictors_present = len(result_generation._train_predictions) > 0
     test_labels_present = len(result_generation._test_labels) > 0
     test_predictors_present = len(result_generation._test_predictions) > 0
     external_labels_present = len(result_generation._external_labels) > 0
     external_predictors_present = len(result_generation._external_predictions) > 0
 
-    assert ((train_labels_present)&(train_predictors_present))|((test_labels_present)&(test_predictors_present))|((external_labels_present)&(external_predictors_present))
+    assert ((train_labels_present) & (train_predictors_present)) | (
+                (test_labels_present) & (test_predictors_present)) | (
+                       (external_labels_present) & (external_predictors_present))
+
 
 # imaging methods tests
 def test_get_dataset_description():
@@ -71,6 +76,7 @@ def test_get_dataset_description():
                   'multi_rts_per_pat': False}
     data_dcms = ToolBox(**parameters)
     assert len(data_dcms.get_dataset_description()) > 0
+
 
 def test_get_quality_checks():
     qc_params = {'specific_modality': 'ct',
@@ -85,8 +91,8 @@ def test_get_quality_checks():
     data_dcms = ToolBox(**parameters)
     assert len(data_dcms.get_quality_checks(qc_params)) > 0
 
-def test_convert_to_nrrd():
 
+def test_convert_to_nrrd():
     flag_files_created = False
 
     export_path = 'data/test/'
@@ -105,17 +111,17 @@ def test_convert_to_nrrd():
         first_folder_path = nrrd_path + first_folder
         flag_files_created = len(os.listdir(first_folder_path)) > 0
 
-    assert (flag_folders_created)&(flag_files_created)
-    
-def test_convert_nrrd_to_dicom():
+    assert (flag_folders_created) & (flag_files_created)
 
+
+def test_convert_nrrd_to_dicom():
     flag_files_created = False
 
     nrrd_path = 'data/test/sample.nrrd'
     original_dicom_dir = 'data/test/original_dicoms/'
-    output_dicom_dir = 'data/test/output_dicoms/'
+    output_dicom_dir = 'data/test/converted_dicoms/'
 
-    toolbox = ToolBox()
+    toolbox = ToolBox(nrrd_path, data_type='nrrd')
 
     # Execute the conversion from NRRD to DICOM
     toolbox.convert_nrrd_to_dicom(nrrd_path, original_dicom_dir, output_dicom_dir)
@@ -125,16 +131,16 @@ def test_convert_nrrd_to_dicom():
     if flag_folders_created:
         flag_files_created = len(os.listdir(output_dicom_dir)) > 0
 
-    assert flag_folders_created and flag_files_created, "DICOM files were not created successfully."  
+    assert flag_folders_created and flag_files_created, "DICOM files were not created successfully."
+
 
 def test_get_jpegs():
-
     flag_files_created = False
 
     export_path = 'data/test/'
     jpeg_path = export_path + 'images_quick_check/'
 
-    data_nrrd = ToolBox(data_path = 'data/test/converted_nrrds_test/', data_type='nrrd')
+    data_nrrd = ToolBox(data_path='data/test/converted_nrrds_test/', data_type='nrrd')
     data_nrrd.get_jpegs(export_path)
 
     flag_folders_created = len(os.listdir(jpeg_path)) > 0
@@ -148,17 +154,17 @@ def test_get_jpegs():
 
         flag_files_created = len(os.listdir(second_level_folder_path)) > 0
 
-    assert (flag_folders_created)&(flag_files_created)
+    assert (flag_folders_created) & (flag_files_created)
+
 
 def test_pre_process():
-
     flag_files_created = False
     first_folder_path = ''
 
     export_path = 'data/test/'
     proc_path = export_path + 'nrrd_preprocessed/'
 
-    data_nrrd = ToolBox(data_path = 'data/test/converted_nrrds_test/', data_type='nrrd')
+    data_nrrd = ToolBox(data_path='data/test/converted_nrrds_test/', data_type='nrrd')
     data_nrrd.pre_process(ref_img_path='data/test/converted_nrrds_test/sub-001_2/image.nrrd',
                           save_path=proc_path,
                           hist_match=False,
@@ -186,75 +192,77 @@ def test_pre_process():
 
     assert (flag_folders_created) & (flag_files_created)
 
-def test_extract_features():
 
-    data_nrrd = ToolBox(data_path = 'data/test/converted_nrrds_test/', data_type='nrrd')
+def test_extract_features():
+    data_nrrd = ToolBox(data_path='data/test/converted_nrrds_test/', data_type='nrrd')
     parameters = 'examples/example_ct_parameters.yaml'
     features = data_nrrd.extract_features(parameters, loggenabled=True)
 
     assert len(features) > 0
 
+
 def test_clean_imaging_module():
     try:
         shutil.rmtree('data/test/converted_nrrds/')
     except:
-        print ('NRRD conversion failed.')
+        print('NRRD conversion failed.')
 
     try:
         shutil.rmtree('data/test/images_quick_check/')
     except:
-        print ('ROIs check failed.')
+        print('ROIs check failed.')
 
     try:
         shutil.rmtree('data/test/nrrd_preprocessed/')
     except:
-        print ('Pre-processing failed.')
+        print('Pre-processing failed.')
 
-#features methods tests
+
+# features methods tests
 def test_plot_distribution():
-
     fs = pickle.load(open('data/test/fs.pickle', "rb"))
     fs.plot_distribution(fs._feature_column[:10])
 
     assert os.path.isfile('data/test/extracted_features_full_distr.html')
 
-def test_plot_correlation_matrix():
 
+def test_plot_correlation_matrix():
     fs = pickle.load(open('data/test/fs.pickle', "rb"))
     fs.plot_correlation_matrix(fs._feature_column[:10])
 
     assert os.path.isfile('data/test/extracted_features_full_corr.html')
 
-def test_plot_MW_p():
 
+def test_plot_MW_p():
     fs = pickle.load(open('data/test/fs.pickle', "rb"))
     fs.plot_MW_p(fs._feature_column[:10])
 
     assert os.path.isfile('data/test/extracted_features_full_MW.html')
 
-def test_plot_univariate_roc():
 
+def test_plot_univariate_roc():
     fs = pickle.load(open('data/test/fs.pickle', "rb"))
     fs.plot_univariate_roc(fs._feature_column[:10])
 
     assert os.path.isfile('data/test/extracted_features_full_roc-univar.html')
 
-def test_volume_analysis():
 
+def test_volume_analysis():
     fs = pickle.load(open('data/test/fs.pickle', "rb"))
     fs.volume_analysis(volume_feature='original_shape_VoxelVolume')
 
-    assert os.path.isfile('data/test/extracted_features_full_volume_corr.html')&os.path.isfile('data/test/extracted_features_full_volume_PRC.html')
+    assert os.path.isfile('data/test/extracted_features_full_volume_corr.html') & os.path.isfile(
+        'data/test/extracted_features_full_volume_PRC.html')
+
 
 def test_calculate_basic_stats():
-
     fs = pickle.load(open('data/test/fs.pickle', "rb"))
     fs.calculate_basic_stats(volume_feature='original_shape_VoxelVolume')
 
     assert os.path.isfile('data/test/extracted_features_full_basic_stats.xlsx')
 
-def test_clean_features_module():
 
+def test_clean_features_module():
     files_to_delete = ['data/test/extracted_features_full_distr.html',
                        'data/test/extracted_features_full_corr.html',
                        'data/test/extracted_features_full_MW.html',
@@ -269,11 +277,11 @@ def test_clean_features_module():
         try:
             os.remove(filename)
         except:
-            print ('Could not remove ', filename)
+            print('Could not remove ', filename)
+
 
 # results methods tests
 def test_get_results():
-
     result_generation = pickle.load(open('data/test/result_generation.pickle', "rb"))
 
     result_generation.get_results('train')
@@ -283,8 +291,8 @@ def test_get_results():
     result_generation.get_results('external')
     plt.close()
 
-def test_get_stats_with_ci():
 
+def test_get_stats_with_ci():
     result_generation = pickle.load(open('data/test/result_generation.pickle', "rb"))
 
     result_generation.get_stats_with_ci('train')
@@ -294,8 +302,8 @@ def test_get_stats_with_ci():
     result_generation.get_stats_with_ci('external')
     plt.close()
 
-def test_print_confusion_matrix():
 
+def test_print_confusion_matrix():
     result_generation = pickle.load(open('data/test/result_generation.pickle', "rb"))
 
     cm_train = result_generation.print_confusion_matrix('train', ['0', '1'])
@@ -305,20 +313,8 @@ def test_print_confusion_matrix():
     cm_external = result_generation.print_confusion_matrix('external', ['0', '1'])
     plt.close()
 
+
 def test_plot_roc_auc_ci():
-
     result_generation = pickle.load(open('data/test/result_generation.pickle', "rb"))
-    title = result_generation.plot_roc_auc_ci(title ="testing roc curve function")
+    title = result_generation.plot_roc_auc_ci(title="testing roc curve function")
     plt.close('all')
-
-
-
-
-
-
-
-
-
-
-
-

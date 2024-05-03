@@ -5,7 +5,7 @@ Created on Thu Apr 23 20:13:55 2020
 s.primakov@maastrichtuniversity.nl
 """
 
-import os,re,logging
+import os, re, logging
 from pmtool.DataSet import DataSet
 import pydicom
 from pydicom.dataset import Dataset, FileDataset
@@ -22,15 +22,17 @@ import pandas as pd
 import csv
 import cv2
 
+
 class MyException(Exception):
     pass
 
-class ToolBox(DataSet):
 
+class ToolBox(DataSet):
     '''This module is inherited from DataSet class and allows for high-level functionality while working with the raw imaging data.'''
 
-    def get_dataset_description(self, parameter_list: list =['Modality', 'SliceThickness',
-                    'PixelSpacing', 'SeriesDate', 'Manufacturer']) -> DataFrame:
+    def get_dataset_description(self, parameter_list: list = ['Modality', 'SliceThickness',
+                                                              'PixelSpacing', 'SeriesDate',
+                                                              'Manufacturer']) -> DataFrame:
         """Get specified metadata from the DICOM files of the dataset.
 
         Arguments:
@@ -39,13 +41,15 @@ class ToolBox(DataSet):
         Returns:
             DataFrame with the specified parameters for each patient.
         """
-        CT_params = ['PatientName','ConvolutionKernel','SliceThickness',
-                      'PixelSpacing','KVP','Exposure','XRayTubeCurrent',
-                      'SeriesDate']
-        MRI_params = ['Manufacturer','SliceThickness','PixelSpacing',
-                      'StudyDate','MagneticFieldStrength','EchoTime']
+        CT_params = ['PatientName', 'ConvolutionKernel', 'SliceThickness',
+                     'PixelSpacing', 'KVP', 'Exposure', 'XRayTubeCurrent',
+                     'SeriesDate']
+        MRI_params = ['Manufacturer', 'SliceThickness', 'PixelSpacing',
+                      'StudyDate', 'MagneticFieldStrength', 'EchoTime']
 
-        if self._data_type =='dcm':
+        MAMMOGAPHY_params = ['Temp', 'Temp_2', 'Temp_3']
+
+        if self._data_type == 'dcm':
             if parameter_list == 'MRI':
                 params_list = MRI_params
 
@@ -54,13 +58,14 @@ class ToolBox(DataSet):
             else:
                 params_list = parameter_list
 
-            dataset_stats = DataFrame(data=None, columns = params_list )
-            for pat,path in tqdm(self, desc='Patients processed'):
-                image,_ = self.__read_scan(path[0])
-                for i,temp_slice in enumerate(image):
-                    dataset_stats = dataset_stats.append(pd.Series([pat,str(i),*[self.__val_check(temp_slice,x) for x in params_list]],
-                                                                   index = ['patient','slice#',*params_list]),
-                                                         ignore_index=True)
+            dataset_stats = DataFrame(data=None, columns=params_list)
+            for pat, path in tqdm(self, desc='Patients processed'):
+                image, _ = self.__read_scan(path[0])
+                for i, temp_slice in enumerate(image):
+                    dataset_stats = dataset_stats.append(
+                        pd.Series([pat, str(i), *[self.__val_check(temp_slice, x) for x in params_list]],
+                                  index=['patient', 'slice#', *params_list]),
+                        ignore_index=True)
 
             return dataset_stats
         else:
@@ -72,38 +77,38 @@ class ToolBox(DataSet):
         Arguments:
             export_path: Path to the folder where the JPEGs will be generated.
         '''
-        if self._data_type =='nrrd':
-            for pat,path in tqdm(self, desc='Patients processed'):
+        if self._data_type == 'nrrd':
+            for pat, path in tqdm(self, desc='Patients processed'):
                 try:
                     temp_data = sitk.ReadImage(path[0])
                     temp_mask = sitk.ReadImage(path[1])
                     temp_image_array = sitk.GetArrayFromImage(temp_data)
                     temp_mask_array = sitk.GetArrayFromImage(temp_mask)
 
-                    directory = os.path.join(export_path,'images_quick_check',pat,path[1][:-5].split(os.sep)[-1])
-                    z_dist = np.sum(temp_mask_array,axis = (1,2))
-                    z_ind = np.where(z_dist!=0)[0]
+                    directory = os.path.join(export_path, 'images_quick_check', pat, path[1][:-5].split(os.sep)[-1])
+                    z_dist = np.sum(temp_mask_array, axis=(1, 2))
+                    z_ind = np.where(z_dist != 0)[0]
 
                     for j in z_ind:
                         if not os.path.exists(directory):
                             os.makedirs(directory)
-                        temp_image_array[j,0,0]= 1
-                        temp_mask_array [j,0,0]= 1
-                        plt.figure(figsize=(20,20))
+                        temp_image_array[j, 0, 0] = 1
+                        temp_mask_array[j, 0, 0] = 1
+                        plt.figure(figsize=(20, 20))
                         plt.subplot(121)
-                        plt.imshow(temp_image_array[j,...],cmap = 'bone')
+                        plt.imshow(temp_image_array[j, ...], cmap='bone')
                         plt.subplot(122)
-                        plt.imshow(temp_image_array[j,...],cmap = 'bone')
-                        plt.contour(temp_mask_array[j,...],colors = 'red',linewidths = 2)#,alpha=0.7)
-                        plt.savefig(os.path.join(directory,'slice #%d'%j),bbox_inches='tight')
+                        plt.imshow(temp_image_array[j, ...], cmap='bone')
+                        plt.contour(temp_mask_array[j, ...], colors='red', linewidths=2)  # ,alpha=0.7)
+                        plt.savefig(os.path.join(directory, 'slice #%d' % j), bbox_inches='tight')
                         plt.close()
                 except Exception:
-                    warn('Something wrong with %s'%pat)
+                    warn('Something wrong with %s' % pat)
 
         else:
             raise TypeError('The toolbox should be initialized with data_type = "nrrd" ')
 
-    def extract_features(self, params_file: str, loggenabled: bool =False) -> DataFrame:
+    def extract_features(self, params_file: str, loggenabled: bool = False) -> DataFrame:
         """Extract PyRadiomic features from the dataset.
 
                 Arguments:
@@ -114,8 +119,8 @@ class ToolBox(DataSet):
                     DataFrame with the extracted features.
         """
 
-        if self._data_type =='nrrd':
-            #set up pyradiomics
+        if self._data_type == 'nrrd':
+            # set up pyradiomics
             if loggenabled:
                 logger = radiomics.logger
                 logger.setLevel(logging.DEBUG)  # set level to DEBUG to include debug log messages in log file
@@ -127,24 +132,24 @@ class ToolBox(DataSet):
                 logger.addHandler(handler)
 
             # Initialize feature extractor using the settings file
-            feat_dictionary,key_number={},0
+            feat_dictionary, key_number = {}, 0
             extractor = featureextractor.RadiomicsFeatureExtractor(params_file)
 
-            for pat,path in tqdm(self,desc='Patients processed'):
+            for pat, path in tqdm(self, desc='Patients processed'):
                 try:
                     temp_data = sitk.ReadImage(path[0])
                     temp_mask = sitk.ReadImage(path[1])
                     pat_features = extractor.execute(temp_data, temp_mask)
 
                     if pat_features['diagnostics_Image-original_Hash'] != '':
-                        pat_features.update({'Patient':pat,'ROI':path[1].split(os.sep)[-1][:-5]})
+                        pat_features.update({'Patient': pat, 'ROI': path[1].split(os.sep)[-1][:-5]})
                         feat_dictionary[key_number] = pat_features
-                        key_number+=1
+                        key_number += 1
 
                 except KeyboardInterrupt:
                     raise
                 except Exception:
-                    warn('region : %s skipped'%pat)
+                    warn('region : %s skipped' % pat)
 
             output_features = DataFrame.from_dict(feat_dictionary).T
 
@@ -160,89 +165,113 @@ class ToolBox(DataSet):
             region_of_interest: If you know exact name of the ROI you want to extract, then write it with the ! character in front, eg. region_of_interest = !gtv1 , if you want to extract all the GTVs in the rtstructure eg. gtv1, gtv2, gtv_whatever, then just specify the stem word eg. region_of_interest = gtv, default value is region_of_interest ='all' , which means that all ROIs in rtstruct will be extracted.
             image_type: Data type of the input image.
         '''
-        
+
         if self._data_type == 'dcm':
+            if self._twod_image:
+                if self._image_only:
+                    for pat, pat_path in tqdm(self, desc='Patients converted'):
+                        img_path = pat_path[0]
+                        img_sitk = sitk.ReadImage(img_path)
 
-            if self._image_only:
+                        export_dir = os.path.join(export_path, 'converted_nrrds', pat)
+                        os.makedirs(export_dir, exist_ok=True)
+                        sitk.WriteImage(img_sitk, os.path.join(export_dir, "image.nrrd"), useCompression=True)
+                else:
+                    for pat, pat_path in tqdm(self, desc='Patients converted'):
+                        img_path = pat_path[0]
+                        lab_path = pat_path[1]
+                        img_sitk = sitk.ReadImage(img_path)
+                        lab_sitk = sitk.ReadImage(lab_path)
 
-                for pat, pat_path in tqdm(self, desc='Patients converted'):
-                    img_path = pat_path[0]
-                    image = self.__get_image(img_path, image_type)
-
-                    export_dir = os.path.join(export_path, 'converted_nrrds', pat)
-                    if not os.path.exists(export_dir):
-                        os.makedirs(export_dir)
-
-                    image_file_name = 'image.nrrd'
-                    sitk.WriteImage(image, os.path.join(export_dir, image_file_name))
-
+                        export_dir = os.path.join(export_path, 'converted_nrrds', pat)
+                        os.makedirs(export_dir, exist_ok=True)
+                        sitk.WriteImage(img_sitk, os.path.join(export_dir, "image.nrrd"), useCompression=True)
+                        sitk.WriteImage(lab_sitk, os.path.join(export_dir, "label.nrrd"), useCompression=True)
             else:
+                if self._image_only:
+                    for pat, pat_path in tqdm(self, desc='Patients converted'):
+                        img_path = pat_path[0]
+                        image = self.__get_image(img_path, image_type)
 
-                for pat, pat_path in tqdm(self, desc='Patients converted'):
-                    img_path = pat_path[0]
-                    rt_path = pat_path[1]
-                    try:
-                        rt_structure, roi_list = self.__get_roi(region_of_interest, rt_path)
-                    except KeyboardInterrupt:
-                        raise
-                    except Exception:
-                        roi_list = []
-                        warn('Error: ROI extraction failed for patient%s' % pat)
+                        export_dir = os.path.join(export_path, 'converted_nrrds', pat)
+                        if not os.path.exists(export_dir):
+                            os.makedirs(export_dir)
 
-                    for roi in roi_list:
+                        image_file_name = 'image.nrrd'
+                        sitk.WriteImage(image, os.path.join(export_dir, image_file_name))
+
+                else:
+
+                    for pat, pat_path in tqdm(self, desc='Patients converted'):
+                        img_path = pat_path[0]
+                        rt_path = pat_path[1]
                         try:
-                            image, mask = self.__get_binary_mask(img_path, rt_structure, roi, image_type)
-
-                            export_dir = os.path.join(export_path, 'converted_nrrds', pat)
-
-                            if not os.path.exists(export_dir):
-                                os.makedirs(export_dir)
-
-                            image_file_name = 'image.nrrd'
-                            mask_file_name = '%s_mask.nrrd' % roi
-                            sitk.WriteImage(image, os.path.join(export_dir,
-                                                                image_file_name))  # save image and binary mask locally
-                            sitk.WriteImage(mask, os.path.join(export_dir, mask_file_name))
+                            rt_structure, roi_list = self.__get_roi(region_of_interest, rt_path)
                         except KeyboardInterrupt:
                             raise
                         except Exception:
-                            warn('Patients %s ROI : %s skipped' % (pat, roi))
+                            roi_list = []
+                            warn('Error: ROI extraction failed for patient%s' % pat)
+
+                        for roi in roi_list:
+                            try:
+                                image, mask = self.__get_binary_mask(img_path, rt_structure, roi, image_type)
+
+                                export_dir = os.path.join(export_path, 'converted_nrrds', pat)
+
+                                if not os.path.exists(export_dir):
+                                    os.makedirs(export_dir)
+
+                                image_file_name = 'image.nrrd'
+                                mask_file_name = '%s_mask.nrrd' % roi
+                                sitk.WriteImage(image, os.path.join(export_dir,
+                                                                    image_file_name))  # save image and binary mask locally
+                                sitk.WriteImage(mask, os.path.join(export_dir, mask_file_name))
+                            except KeyboardInterrupt:
+                                raise
+                            except Exception:
+                                warn('Patients %s ROI : %s skipped' % (pat, roi))
 
 
         else:
             raise TypeError('Currently only conversion from dicom -> nrrd is available')
-        
-    
-    def convert_nrrd_to_dicom(self, nrrd_path: str, original_dicom_dir: str, output_dicom_dir: str):
+
+    def convert_nrrd_to_dicom(self, nrrd_path: str, output_dicom_dir: str):
         """
         Convert an NRRD file to a series of DICOM files using metadata from an original DICOM series.
 
         Parameters:
         - nrrd_path: Path to the NRRD file.
-        - original_dicom_dir: Directory containing the original DICOM files for metadata.
         - output_dicom_dir: Directory where the new DICOM files will be saved.
         """
         # Read the NRRD file
-        img_sitk = sitk.ReadImage(nrrd_path)
-        # Convert the data type of the image array to int16, typically needed for medical images        
-        img_arr = sitk.GetArrayFromImage(img_sitk)
-        sitk_img = sitk.GetImageFromArray(img_arr)
+        for pat, pat_path in tqdm(self, desc='Patients converted'):
+            img_path = next((p for p in pat_path if p.endswith('_img.nrrd')), None)
+            if img_path:
+                img_sitk = sitk.ReadImage(img_path)
+                # Convert the data type of the image array to int16, typically needed for medical images
+                img_arr = sitk.GetArrayFromImage(img_sitk).astype(np.int16)
+                sitk_img = sitk.GetImageFromArray(img_arr)
 
-        # Copy spacing, origin, and direction from the original image
-        sitk_img.SetSpacing(img_sitk.GetSpacing())
-        sitk_img.SetOrigin(img_sitk.GetOrigin())
-        sitk_img.SetDirection(img_sitk.GetDirection())
+                # Copy spacing, origin, and direction from the original image
+                sitk_img.SetSpacing(img_sitk.GetSpacing())
+                sitk_img.SetOrigin(img_sitk.GetOrigin())
+                sitk_img.SetDirection(img_sitk.GetDirection())
 
-        # Set necessary DICOM metadata
-        sitk_img.SetMetaData("0008|0016", "1.2.840.10008.5.1.4.1.1.2")  # SOP Class UID, e.g., CT Image Storage
-        sitk_img.SetMetaData("0008|103E", "Image converted from NRRD")   # Series Description
-        
-        # Save the new DICOM file
-        output_path = os.path.join(output_dicom_dir, f"slice_{i + 1}.dcm")
-        # Write the DICOM file
-        sitk.WriteImage(sitk_img, output_path)
+                # Set necessary DICOM metadata
+                sitk_img.SetMetaData("0008|0016", "1.2.840.10008.5.1.4.1.1.2")  # SOP Class UID, e.g., CT Image Storage
+                sitk_img.SetMetaData("0008|103E", "Image converted from NRRD")  # Series Description
 
-        print(f"Conversion complete. DICOM files saved to {output_dicom_dir}")    
+                # Get the file name
+                org_file_name = '_'.join(os.path.splitext(os.path.basename(img_path))[0].split('_')[:-1])
+
+
+                # Save the new DICOM file
+                output_path = os.path.join(output_dicom_dir, f"{org_file_name}_converted_img.dcm")
+                # Write the DICOM file
+                sitk.WriteImage(sitk_img, output_path)
+
+        print(f"Conversion complete. DICOM files saved to {output_dicom_dir}")
 
     def pre_process(self, ref_img_path: str = None, save_path: str = None,
                     z_score: bool = False, norm_coeff: tuple = None, hist_match: bool = False,
@@ -251,7 +280,8 @@ class ToolBox(DataSet):
                     subcateneus_fat: bool = False, fat_value: bool = None,
                     reshape: bool = False, to_shape: np.array = None,
                     window_filtering_params: tuple = None,
-                    verbosity: bool = False, visualize: bool = False):
+                    verbosity: bool = False, visualize: bool = False, clahe_apply=False, clahe_clip_limit=2.0,
+                    clahe_tile_grid_size=(8, 8)):
         '''Pre-process the images.
 
         Arguments:
@@ -270,31 +300,58 @@ class ToolBox(DataSet):
             to_shape: Target shape for image reshaping.
             verbosity: Enable log reporting.
             visualize: Enable visualization of every pre-processing step.
-        '''
 
-        ref_img_arr = sitk.GetArrayFromImage(sitk.ReadImage(ref_img_path))
+        '''
+        ####
+        if hist_match and ref_img_path:
+            ref_img_arr = sitk.GetArrayFromImage(sitk.ReadImage(ref_img_path))
+        else:
+            ref_img_arr = None
+        # ref_img_arr = sitk.GetArrayFromImage(sitk.ReadImage(ref_img_path))
         for i, pat in tqdm(self):
             image = sitk.ReadImage(pat[0])
             mask = sitk.ReadImage(pat[1])
             image_array = sitk.GetArrayFromImage(image)
             mask_array = sitk.GetArrayFromImage(mask)
-            ref_image_arr = ref_img_arr.copy()
+            # ref_image_arr = ref_img_arr.copy()
             # run the pre-processing
-            pre_processed_arr = self.__preprocessing_function(image_array, mask_array, ref_image_arr,
+            pre_processed_arr = self.__preprocessing_function(image_array, mask_array,
+                                                              ref_img_arr if hist_match else None,
                                                               z_score, norm_coeff, hist_match, hist_equalize,
                                                               binning, percentile_scaling,
                                                               corr_bias_field, window_filtering_params,
                                                               subcateneus_fat,
                                                               fat_value,
                                                               reshape, to_shape,
-                                                              verbosity, visualize)
+                                                              verbosity, visualize, clahe_apply, clahe_clip_limit,
+                                                              clahe_tile_grid_size)
 
             export_dir = os.path.join(save_path, i)
             if not os.path.exists(export_dir):
                 os.makedirs(export_dir)
 
             pre_processed_image = sitk.GetImageFromArray(pre_processed_arr)
-            pre_processed_image.CopyInformation(image)
+
+            ### added by me
+            if pre_processed_arr.ndim == 2:
+                # If it's 2D, we need to add back the singleton dimension to make it 3D
+                pre_processed_arr = np.expand_dims(pre_processed_arr, axis=0)  # Adds a singleton dimension at the end
+
+            # create the SimpleITK image from the numpy array
+            pre_processed_image = sitk.GetImageFromArray(pre_processed_arr.astype(np.float32))
+
+            # Copy the metadata from the original image
+            pre_processed_image.SetSpacing(image.GetSpacing())
+            pre_processed_image.SetOrigin(image.GetOrigin())
+            pre_processed_image.SetDirection(image.GetDirection())
+
+            #  try copying the information from the original image
+            try:
+                pre_processed_image.CopyInformation(image)
+            except Exception as e:
+                print("Failed to copy information from the original image:", e)
+
+            ##
             sitk.WriteImage(pre_processed_image,
                             os.path.join(export_dir, 'pre_processed_img.nrrd'))  # save image and binary mask locally
             sitk.WriteImage(mask, os.path.join(export_dir, 'mask.nrrd'))
@@ -302,7 +359,8 @@ class ToolBox(DataSet):
         params = {'ref_img_path': ref_img_path, 'save_path': save_path, 'z_score': z_score, 'norm_coeff': norm_coeff,
                   'hist_match': hist_match, 'hist_equalize': hist_equalize, 'binning': binning,
                   'percentile_scaling': percentile_scaling, 'subcateneus_fat': subcateneus_fat, 'fat_value': fat_value,
-                  'verbosity': verbosity, 'visualize': visualize}
+                  'verbosity': verbosity, 'visualize': visualize, 'clahe_apply': clahe_apply,
+                  'clahe_clip_limit': clahe_clip_limit, 'clahe_tile_grid_size': clahe_tile_grid_size}
 
         with open(os.path.join(save_path, 'pre-processing_parameters.csv'), 'w') as csv_file:
             writer = csv.writer(csv_file)
@@ -316,7 +374,7 @@ class ToolBox(DataSet):
                                                         'axial_res': [],
                                                         'spacing_range': [],
                                                         'kernels_list': []},
-                           verbosity: bool =False) -> DataFrame:
+                           verbosity: bool = False) -> DataFrame:
 
         '''Perform a basic quality check for the data. If one of the quality checked parameters is not passed, the correspondig check is not to be performed.
 
@@ -371,7 +429,8 @@ class ToolBox(DataSet):
         else:
             modality = '-'
             if verbosity:
-                print("Acceptable value was not provided for the 'specific_modality', modality check was not performed ")
+                print(
+                    "Acceptable value was not provided for the 'specific_modality', modality check was not performed ")
 
         ##number of slices_check
         if qc_parameters.get('scan_length_range', 0):
@@ -388,7 +447,8 @@ class ToolBox(DataSet):
                     slice_nr = np.nan
                     print('Cannot perform slice # check for pat: %s' % patient)
             else:
-                raise MyException("Please correctly specify the scan_length_range in parameters (e.g. 'scan_length_range':[1,50])")
+                raise MyException(
+                    "Please correctly specify the scan_length_range in parameters (e.g. 'scan_length_range':[1,50])")
         else:
             slice_nr = '-'
             if verbosity:
@@ -399,7 +459,8 @@ class ToolBox(DataSet):
             if len(qc_parameters['spacing_range']) == 2:
                 try:
                     ps = img.PixelSpacing
-                    if ps[0] == ps[1] and ps[0] >= qc_parameters['spacing_range'][0] and ps[0] <= qc_parameters['spacing_range'][1]:
+                    if ps[0] == ps[1] and ps[0] >= qc_parameters['spacing_range'][0] and ps[0] <= \
+                            qc_parameters['spacing_range'][1]:
                         pixel_sp = 1
                     else:
                         pixel_sp = 0
@@ -409,7 +470,8 @@ class ToolBox(DataSet):
                     pixel_sp = np.nan
                     print('Cannot perform pixel spacing range check for pat: %s' % patient)
             else:
-                raise MyException("Please correctly specify the spacing_range in parameters (e.g. 'spacing_range':[0.9,1.5])")
+                raise MyException(
+                    "Please correctly specify the spacing_range in parameters (e.g. 'spacing_range':[0.9,1.5])")
         else:
             pixel_sp = '-'
             if verbosity:
@@ -428,10 +490,11 @@ class ToolBox(DataSet):
         if qc_parameters.get('axial_res', 0):
             if len(qc_parameters['axial_res']) == 2:
                 try:
-                    intercept_slope, image_shape = self.__get_pixel_values(scans,np.int8,True,qc_parameters['axial_res'])
+                    intercept_slope, image_shape = self.__get_pixel_values(scans, np.int8, True,
+                                                                           qc_parameters['axial_res'])
                     if verbosity:
                         print('Intercept/slope check status:', intercept_slope)
-                        print('Image shape is %s check status'%qc_parameters['axial_res'], image_shape)
+                        print('Image shape is %s check status' % qc_parameters['axial_res'], image_shape)
                 except Exception:
                     intercept_slope, image_shape = np.nan, np.nan
                     print('Cannot perform Intercept/slope and image shape check for pat: %s' % patient)
@@ -440,14 +503,17 @@ class ToolBox(DataSet):
         else:
             intercept_slope, image_shape = '-', '-'
             if verbosity:
-                print('Acceptable range was not provided for the axial resolution, axial pr. resolution check & Intercept/slope check are not performed ')
+                print(
+                    'Acceptable range was not provided for the axial resolution, axial pr. resolution check & Intercept/slope check are not performed ')
 
         ##check slice thickness consistency
         if qc_parameters.get('thickness_range', 0):
             if len(qc_parameters['thickness_range']) == 2:
                 try:
                     slice_thickness_consistency, slice_thickness_range = self.__check_consistent_slice_thickness(scans,
-                                                                                                              thickness_range=qc_parameters['thickness_range'])
+                                                                                                                 thickness_range=
+                                                                                                                 qc_parameters[
+                                                                                                                     'thickness_range'])
                     if verbosity:
                         print('Slice thickness consistency check status:', slice_thickness_consistency)
                         print('Slice thickness in acceptable range check status:', slice_thickness_range)
@@ -455,11 +521,13 @@ class ToolBox(DataSet):
                     slice_thickness_consistency, slice_thickness_range = np.nan, np.nan
                     print('Cannot perform slice thickness consistency and range check for pat: %s' % patient)
             else:
-                raise MyException("Please correctly specify the 'thickness_range' in parameters (e.g. 'thickness_range':[3,5])")
+                raise MyException(
+                    "Please correctly specify the 'thickness_range' in parameters (e.g. 'thickness_range':[3,5])")
         else:
             slice_thickness_consistency, slice_thickness_range = '-', '-'
             if verbosity:
-                print('Acceptable range was not provided for the thickness_range, slice thickness range check & slice thickness consistency check are not performed ')
+                print(
+                    'Acceptable range was not provided for the thickness_range, slice thickness range check & slice thickness consistency check are not performed ')
 
         ##check missing overlaping slices
         try:
@@ -472,7 +540,7 @@ class ToolBox(DataSet):
 
         ##check conv kernel
         if qc_parameters.get('kernels_list', 0):
-            if len(qc_parameters['kernels_list']) >0:
+            if len(qc_parameters['kernels_list']) > 0:
                 try:
                     conv_kern = self.__check_kernel(scans, qc_parameters['kernels_list'])
                     conv_pres = 1
@@ -483,7 +551,8 @@ class ToolBox(DataSet):
                     conv_pres = 0
                     print('Cannot perform conv kernel check for pat: %s' % patient)
             else:
-                raise MyException("Please correctly specify the 'kernels_list' in parameters (e.g. 'kernels_list':['standard','lung'])")
+                raise MyException(
+                    "Please correctly specify the 'kernels_list' in parameters (e.g. 'kernels_list':['standard','lung'])")
         else:
             conv_kern, conv_pres = '-', '-'
             if verbosity:
@@ -497,12 +566,12 @@ class ToolBox(DataSet):
     def __check_image_axial_plane(self, img):
         if int(img.ImageOrientationPatient[0]) and int(img.ImageOrientationPatient[4]) and not int(
                 img.ImageOrientationPatient[1]) and not int(img.ImageOrientationPatient[2]) and not int(
-                img.ImageOrientationPatient[3]) and not int(img.ImageOrientationPatient[5]):
+            img.ImageOrientationPatient[3]) and not int(img.ImageOrientationPatient[5]):
             return 1
         else:
             return 0
 
-    def __check_modality(self,scans,speciefic_mod):
+    def __check_modality(self, scans, speciefic_mod):
         mod_list = [str(x.Modality).lower() for x in scans]
         if mod_list.count(speciefic_mod.lower()) == len(mod_list):
             return 1
@@ -541,36 +610,39 @@ class ToolBox(DataSet):
         else:
             return 0
 
-    def __get_roi_id(self,rtstruct,roi):
+    def __get_roi_id(self, rtstruct, roi):
 
         for i in range(len(rtstruct.StructureSetROISequence)):
-            if str(roi)==rtstruct.StructureSetROISequence[i].ROIName:
+            if str(roi) == rtstruct.StructureSetROISequence[i].ROIName:
                 roi_number = rtstruct.StructureSetROISequence[i].ROINumber
                 break
         for j in range(len(rtstruct.StructureSetROISequence)):
-            if (roi_number==rtstruct.ROIContourSequence[j].ReferencedROINumber):
+            if (roi_number == rtstruct.ROIContourSequence[j].ReferencedROINumber):
                 break
         return j
 
-    def __get_roi(self,region_of_interest,rt_path):
+    def __get_roi(self, region_of_interest, rt_path):
 
-        rt_structure = pydicom.read_file(rt_path,force=True)
+        rt_structure = pydicom.read_file(rt_path, force=True)
         roi_list = []
-        if region_of_interest.lower()=='all':
-            roi_list = [rt_structure.StructureSetROISequence[x].ROIName for x in range(0,len(rt_structure.StructureSetROISequence))]
+        if region_of_interest.lower() == 'all':
+            roi_list = [rt_structure.StructureSetROISequence[x].ROIName for x in
+                        range(0, len(rt_structure.StructureSetROISequence))]
         else:
-            for i in range(0,len(rt_structure.StructureSetROISequence)):
-                if region_of_interest.lower()[0]=='!':
+            for i in range(0, len(rt_structure.StructureSetROISequence)):
+                if region_of_interest.lower()[0] == '!':
                     exact_roi = region_of_interest[1:]
-                    if exact_roi.lower()== str(rt_structure.StructureSetROISequence[i].ROIName).lower():
-                        roi_list.append(rt_structure.StructureSetROISequence[i].ROIName)       ## only roi with the exact same name
+                    if exact_roi.lower() == str(rt_structure.StructureSetROISequence[i].ROIName).lower():
+                        roi_list.append(
+                            rt_structure.StructureSetROISequence[i].ROIName)  ## only roi with the exact same name
 
-                elif re.search(region_of_interest.lower(),str(rt_structure.StructureSetROISequence[i].ROIName).lower()):
+                elif re.search(region_of_interest.lower(),
+                               str(rt_structure.StructureSetROISequence[i].ROIName).lower()):
                     roi_list.append(rt_structure.StructureSetROISequence[i].ROIName)
 
-        return rt_structure,roi_list
+        return rt_structure, roi_list
 
-    def __coordinates_to_mask(self,row_coords, col_coords, shape):
+    def __coordinates_to_mask(self, row_coords, col_coords, shape):
         mask = np.zeros(shape)
         pol_row_coords, pol_col_coords = draw.polygon(row_coords, col_coords, shape)
         mask[pol_row_coords, pol_col_coords] = 1
@@ -591,15 +663,15 @@ class ToolBox(DataSet):
                 skiped_files.append(s)
 
         try:
-            scan.sort(key = lambda x: x.ImagePositionPatient[2])
+            scan.sort(key=lambda x: x.ImagePositionPatient[2])
         except Exception:
             warn('Some problems with sorting scans')
 
-        return scan,skiped_files
+        return scan, skiped_files
 
-    def __get_pixel_values(self,scans,image_type,qa=False,image_res=[512,512]):
+    def __get_pixel_values(self, scans, image_type, qa=False, image_res=[512, 512]):
         try:
-            image = np.stack([s.pixel_array*s.RescaleSlope+s.RescaleIntercept for s in scans])
+            image = np.stack([s.pixel_array * s.RescaleSlope + s.RescaleIntercept for s in scans])
             if qa:
                 if image.shape[1] == image_res[0] and image.shape[2] == image_res[1]:
                     return 1, 1
@@ -615,12 +687,11 @@ class ToolBox(DataSet):
             else:
                 return image.astype(image_type)
 
-    def __get_image(self, img_path,image_type):
+    def __get_image(self, img_path, image_type):
 
         image, _ = self.__read_scan(img_path)
         img_first_slice = image[0]
         img_array = self.__get_pixel_values(image, image_type)
-
         xres = np.array(img_first_slice.PixelSpacing[0])
         yres = np.array(img_first_slice.PixelSpacing[1])
         zres = np.abs(image[1].ImagePositionPatient[2] - image[0].ImagePositionPatient[2])
@@ -630,88 +701,90 @@ class ToolBox(DataSet):
             (float(img_first_slice.ImagePositionPatient[0]), float(img_first_slice.ImagePositionPatient[1]),
              float(img_first_slice.ImagePositionPatient[2])))
 
-
         return image_sitk
 
-    def __get_binary_mask(self,img_path,rt_structure,roi,image_type):
+    def __get_binary_mask(self, img_path, rt_structure, roi, image_type):
 
-        image,_ = self.__read_scan(img_path)
+        image, _ = self.__read_scan(img_path)
 
         precision_level = 0.5
         img_first_slice = image[0]
-        img_array = self.__get_pixel_values(image,image_type)
+        img_array = self.__get_pixel_values(image, image_type)
 
-        img_length=len(image)
+        img_length = len(image)
 
-        mask=np.zeros([img_length, img_first_slice.Rows, img_first_slice.Columns],dtype=np.uint8)
-        xres=np.array(img_first_slice.PixelSpacing[0])
-        yres=np.array(img_first_slice.PixelSpacing[1])
-        zres=np.abs(image[1].ImagePositionPatient[2] - image[0].ImagePositionPatient[2])
-        roi_id = self.__get_roi_id(rt_structure,roi)
+        mask = np.zeros([img_length, img_first_slice.Rows, img_first_slice.Columns], dtype=np.uint8)
+        xres = np.array(img_first_slice.PixelSpacing[0])
+        yres = np.array(img_first_slice.PixelSpacing[1])
+        zres = np.abs(image[1].ImagePositionPatient[2] - image[0].ImagePositionPatient[2])
+        roi_id = self.__get_roi_id(rt_structure, roi)
 
-        Fm = np.zeros((3,2))
-        Fm[:,0],Fm[:,1] = img_first_slice.ImageOrientationPatient[:3],img_first_slice.ImageOrientationPatient[3:]
-        row_pr,column_pr = img_first_slice.PixelSpacing[0],img_first_slice.PixelSpacing[1]
+        Fm = np.zeros((3, 2))
+        Fm[:, 0], Fm[:, 1] = img_first_slice.ImageOrientationPatient[:3], img_first_slice.ImageOrientationPatient[3:]
+        row_pr, column_pr = img_first_slice.PixelSpacing[0], img_first_slice.PixelSpacing[1]
 
         T_vect = img_first_slice.ImagePositionPatient
         T_1 = np.array(img_first_slice.ImagePositionPatient)
         T_n = np.array(image[-1].ImagePositionPatient)
-        k_column = (T_1 - T_n)/(1 - len(image))
+        k_column = (T_1 - T_n) / (1 - len(image))
 
-        A_multi = np.zeros((4,4))
-        A_multi[:3,0],A_multi[:3,1] = Fm[:,0]*row_pr,Fm[:,1]*column_pr
-        A_multi[:3,3],A_multi[:3,2] = T_vect,k_column
-        A_multi[3,3] = 1
+        A_multi = np.zeros((4, 4))
+        A_multi[:3, 0], A_multi[:3, 1] = Fm[:, 0] * row_pr, Fm[:, 1] * column_pr
+        A_multi[:3, 3], A_multi[:3, 2] = T_vect, k_column
+        A_multi[3, 3] = 1
 
         transform_matrix = np.linalg.inv(A_multi)
 
         for sequence in rt_structure.ROIContourSequence[roi_id].ContourSequence:
             temp_contour = sequence.ContourData
             contour_first_point = np.array([*sequence.ContourData[:3], 1])
-            slice_position = np.dot(transform_matrix,contour_first_point)[2]
+            slice_position = np.dot(transform_matrix, contour_first_point)[2]
 
-            if np.abs(np.round(slice_position)-slice_position)< precision_level:
+            if np.abs(np.round(slice_position) - slice_position) < precision_level:
                 assert slice_position < len(image) and slice_position >= 0
                 z_index = int(np.round(slice_position))
             else:
                 warn('Cant find the slice position, try to select lower precison level')
-                warn('Slice position is: ',slice_position,' suggested position is: ',np.round(slice_position))
+                warn('Slice position is: ', slice_position, ' suggested position is: ', np.round(slice_position))
                 z_index = None
 
-            x,y,z=[],[],[]
+            x, y, z = [], [], []
 
-            for i in range(0,len(temp_contour),3):
-                x.append(temp_contour[i+0])
-                y.append(temp_contour[i+1])
-                z.append(temp_contour[i+2])
+            for i in range(0, len(temp_contour), 3):
+                x.append(temp_contour[i + 0])
+                y.append(temp_contour[i + 1])
+                z.append(temp_contour[i + 2])
 
-            x,y,z=np.array(x),np.array(y),np.array(z)
+            x, y, z = np.array(x), np.array(y), np.array(z)
 
-            coord = np.vstack((x,y,z,np.ones_like(x)))
+            coord = np.vstack((x, y, z, np.ones_like(x)))
 
-            pixel_coords_c_r_s = np.dot(transform_matrix,coord)
-            img_slice = self.__coordinates_to_mask(pixel_coords_c_r_s[1,:],pixel_coords_c_r_s[0,:],[img_array.shape[1],img_array.shape[2]])
+            pixel_coords_c_r_s = np.dot(transform_matrix, coord)
+            img_slice = self.__coordinates_to_mask(pixel_coords_c_r_s[1, :], pixel_coords_c_r_s[0, :],
+                                                   [img_array.shape[1], img_array.shape[2]])
 
             assert z_index
 
-            mask[z_index,:,:] = np.logical_or(mask[z_index,:,:],img_slice)
+            mask[z_index, :, :] = np.logical_or(mask[z_index, :, :], img_slice)
 
         image_sitk = sitk.GetImageFromArray(img_array.astype(image_type))
         mask_sitk = sitk.GetImageFromArray(mask.astype(np.int8))
 
-        image_sitk.SetSpacing((float(xres),float(yres),float(zres)))
-        mask_sitk.SetSpacing((float(xres),float(yres),float(zres)))
-        image_sitk.SetOrigin((float(img_first_slice.ImagePositionPatient[0]),float(img_first_slice.ImagePositionPatient[1]),
-                       float(img_first_slice.ImagePositionPatient[2])))
-        mask_sitk.SetOrigin((float(img_first_slice.ImagePositionPatient[0]),float(img_first_slice.ImagePositionPatient[1]),
-                       float(img_first_slice.ImagePositionPatient[2])))
+        image_sitk.SetSpacing((float(xres), float(yres), float(zres)))
+        mask_sitk.SetSpacing((float(xres), float(yres), float(zres)))
+        image_sitk.SetOrigin(
+            (float(img_first_slice.ImagePositionPatient[0]), float(img_first_slice.ImagePositionPatient[1]),
+             float(img_first_slice.ImagePositionPatient[2])))
+        mask_sitk.SetOrigin(
+            (float(img_first_slice.ImagePositionPatient[0]), float(img_first_slice.ImagePositionPatient[1]),
+             float(img_first_slice.ImagePositionPatient[2])))
 
         return image_sitk, mask_sitk
 
-    def __val_check(self,file,value):
+    def __val_check(self, file, value):
         try:
-            val = getattr(file,value)
-            if val == '' or val==' ':
+            val = getattr(file, value)
+            if val == '' or val == ' ':
                 return 'NaN'
             else:
                 return val
@@ -723,7 +796,8 @@ class ToolBox(DataSet):
         img = img / norm_coeff[1]
         return img
 
-    def __normalize_image_zscore_per_image(self, image, mask, verbosity):  ##Zscore based on the masked region intensities
+    def __normalize_image_zscore_per_image(self, image, mask,
+                                           verbosity):  ##Zscore based on the masked region intensities
         image_s = image.copy()
         mu = np.mean(image_s.flatten())
         sigma = np.std(image_s.flatten())
@@ -740,8 +814,8 @@ class ToolBox(DataSet):
             filtered += np.abs(np.min(orig_img.flatten()))
         resampled = np.zeros_like(filtered)
         max_val_img = np.max(filtered.flatten())
-        step = max_val_img / (1.0*bin_nr)
-        print('min: ',np.min(filtered.flatten()),'max: ',np.max(filtered.flatten()),'step: ',step)
+        step = max_val_img / (1.0 * bin_nr)
+        print('min: ', np.min(filtered.flatten()), 'max: ', np.max(filtered.flatten()), 'step: ', step)
         for st in np.arange(step, max_val_img + step, step):
             resampled[(filtered <= st) & (filtered >= st - step)] = v_count
             v_count += 1
@@ -859,7 +933,8 @@ class ToolBox(DataSet):
     def __preprocessing_function(self, img, mask, ref_img, z_score, norm_coeff, hist_match, hist_equalize, binning,
                                  percentile_scaling, corr_bias_field, window_filtering_params,
                                  subcateneus_fat, fat_value, reshape, to_shape,
-                                 verbosity, visualize, clahe_apply=False, clahe_clip_limit=2.0, clahe_tile_grid_size = (8, 8)):
+                                 verbosity, visualize, clahe_apply=False, clahe_clip_limit=2.0,
+                                 clahe_tile_grid_size=(8, 8)):
 
         if verbosity:
             unique_number_of_intensity = np.unique(img.flatten())
@@ -872,8 +947,12 @@ class ToolBox(DataSet):
             print('Image intensity dtype:', img_type)
             print('-' * 40)
         if visualize:
+            img = np.squeeze(img)
+
             plt.figure(figsize=(12, 12))
-            plt.imshow(img[int(len(img) / 2.), ...], cmap='bone')
+            # plt.imshow(img[int(len(img) / 2.), ...], cmap='bone')
+            plt.imshow(img, cmap='bone')
+
             plt.title('original image')
             plt.show()
 
@@ -887,8 +966,8 @@ class ToolBox(DataSet):
                 plt.title('Bias field correction')
                 plt.show()
 
-        if len(window_filtering_params) == 2:
-            img = self.__apply_window(img, window_filtering_params,verbosity)
+        if window_filtering_params is not None and len(window_filtering_params) == 2:
+            img = self.__apply_window(img, window_filtering_params, verbosity)
             if verbosity:
                 print('Window filtering applied')
             if visualize:
@@ -943,15 +1022,26 @@ class ToolBox(DataSet):
                 plt.title('%s bins resampled' % binning)
                 plt.show()
 
-        if hist_equalize and img.dtype == np.uint8:
-            equalized = [cv2.equalizeHist(np.squeeze(x).astype(np.uint8)) for x in img]
-            img = np.stack(equalized)
+        # if hist_equalize and img.dtype == np.uint8:
+        #     equalized = [cv2.equalizeHist(np.squeeze(x).astype(np.uint8)) for x in img]
+        #     img = np.stack(equalized)
+        #     if verbosity:
+        #         print('Histogram equalization applied')
+        #     if visualize:
+        #         plt.figure(figsize=(12, 12))
+        #         plt.imshow(img[int(len(img) / 2.), ...], cmap='bone')
+        #         plt.title('Histogram equalize')
+        #         plt.show()
+
+        if hist_equalize:
+            img = cv2.equalizeHist(img.astype(np.uint8))
             if verbosity:
-                print('Histogram equalization applied')
+                print('Histogram Equalization applied')
             if visualize:
+                img = np.squeeze(img)
                 plt.figure(figsize=(12, 12))
-                plt.imshow(img[int(len(img) / 2.), ...], cmap='bone')
-                plt.title('Histogram equalize')
+                plt.imshow(img, cmap='bone')
+                plt.title('Histogram Equalized')
                 plt.show()
 
         if z_score and norm_coeff:
@@ -974,24 +1064,45 @@ class ToolBox(DataSet):
                 plt.title('Z-score normalization applied')
                 plt.show()
 
+        # if clahe_apply:
+        #     try:
+        #         clahe = cv2.createCLAHE(clipLimit=clahe_clip_limit, tileGridSize=clahe_tile_grid_size)
+        #         img = clahe.apply(img)
+        #     except:
+        #         print("CLAHE normalization only works for 2D images. Check if the image is 2D.")
         if clahe_apply:
-            try:
-                clahe = cv2.createCLAHE(clipLimit=clahe_clip_limit, tileGridSize=clahe_tile_grid_size)
-                img =  clahe.apply(img)
-            except:
-                print("CLAHE normalization only works for 2D images. Check if the image is 2D.")
-        
+            clahe = cv2.createCLAHE(clipLimit=clahe_clip_limit, tileGridSize=clahe_tile_grid_size)
+            if img.dtype != np.uint8:
+                img_normalized = cv2.normalize(img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+                img_uint8 = img_normalized.astype(np.uint8)
+            else:
+                img_uint8 = img
+        try:
+            if img_uint8.ndim == 2:  # 2D image
+                img = clahe.apply(img_uint8)
+                plt.figure(figsize=(12, 12))
+                plt.imshow(img, cmap='bone')
+                plt.title('CLAHE Applied')
+                plt.show()
+            elif img_uint8.ndim == 3:  # 3D image, apply slice by slice
+                for i in range(img_uint8.shape[0]):
+                    img_uint8[i, :, :] = clahe.apply(img_uint8[i, :, :])
+                img = img_uint8
+        except Exception as e:
+            print("Failed to apply CLAHE: ", e)
+
         if reshape and to_shape:
-            if to_shape.shape==3:
+            if to_shape.shape == 3:
                 img = self.__resize_3d_img(img)
                 if verbosity:
                     print('Image reshaped: %s' % to_shape)
                 if visualize:
+                    img = np.squeeze(img)
                     plt.figure(figsize=(12, 12))
                     plt.imshow(img[int(len(img) / 2.), ...], cmap='bone')
                     plt.title('Reshaped image')
                     plt.show()
-                    
+
         return img
 
 
