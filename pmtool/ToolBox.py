@@ -17,6 +17,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import radiomics
 from radiomics import featureextractor
+#from radiomics import features
 from pandas import DataFrame
 import pandas as pd
 import csv
@@ -236,6 +237,11 @@ class ToolBox(DataSet):
         else:
             raise TypeError('Currently only conversion from dicom -> nrrd is available')
 
+    import os
+    import SimpleITK as sitk
+    import numpy as np
+    from tqdm import tqdm
+
     def convert_nrrd_to_dicom(self, nrrd_path: str, output_dicom_dir: str):
         """
         Convert an NRRD file to a series of DICOM files using metadata from an original DICOM series.
@@ -244,6 +250,9 @@ class ToolBox(DataSet):
         - nrrd_path: Path to the NRRD file.
         - output_dicom_dir: Directory where the new DICOM files will be saved.
         """
+        # Ensure the output directory exists
+        os.makedirs(output_dicom_dir, exist_ok=True)
+
         # Read the NRRD file
         for pat, pat_path in tqdm(self, desc='Patients converted'):
             img_path = next((p for p in pat_path if p.endswith('_img.nrrd')), None)
@@ -264,7 +273,6 @@ class ToolBox(DataSet):
 
                 # Get the file name
                 org_file_name = '_'.join(os.path.splitext(os.path.basename(img_path))[0].split('_')[:-1])
-
 
                 # Save the new DICOM file
                 output_path = os.path.join(output_dicom_dir, f"{org_file_name}_converted_img.dcm")

@@ -20,3 +20,4 @@ opencv-python
 seaborn
 pickle-mixin
 openpyxl==3.0.7
+jupyter

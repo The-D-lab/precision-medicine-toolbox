@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  toolbox:
+    build: .
+    volumes:
+      - toolbox_testing/data_dicom/data:/app/data sdsa
+    environment:
+      DATA_PATH: /app/data
+      DATA_TYPE: dcm
+      MULTI_RTS_PER_PAT: "False"
+      TWOD_IMAGE: "True"
+      PRE_PROCESSED_PATH: /app/data/preprocessed
+      OUT_DICOM_PATH: /app/data/converted_dicoms
+    entrypoint: ["python", "main.py"]
