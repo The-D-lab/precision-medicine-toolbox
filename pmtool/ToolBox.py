@@ -166,17 +166,18 @@ class ToolBox(DataSet):
             region_of_interest: If you know exact name of the ROI you want to extract, then write it with the ! character in front, eg. region_of_interest = !gtv1 , if you want to extract all the GTVs in the rtstructure eg. gtv1, gtv2, gtv_whatever, then just specify the stem word eg. region_of_interest = gtv, default value is region_of_interest ='all' , which means that all ROIs in rtstruct will be extracted.
             image_type: Data type of the input image.
         '''
-
         if self._data_type == 'dcm':
             if self._twod_image:
                 if self._image_only:
-                    for pat, pat_path in tqdm(self, desc='Patients converted'):
-                        img_path = pat_path[0]
-                        img_sitk = sitk.ReadImage(img_path)
-
+                    for pat, pat_data in tqdm(self._patient_dict.items(), desc='Patients converted'):
+                        img_paths = pat_data['images']
                         export_dir = os.path.join(export_path, 'converted_nrrds', pat)
                         os.makedirs(export_dir, exist_ok=True)
-                        sitk.WriteImage(img_sitk, os.path.join(export_dir, "image.nrrd"), useCompression=True)
+
+                        for i, img_path in enumerate(img_paths):
+                            img_sitk = sitk.ReadImage(img_path)
+                            output_filename = f"image_{i}.nrrd"
+                            sitk.WriteImage(img_sitk, os.path.join(export_dir, output_filename), useCompression=True)
                 else:
                     for pat, pat_path in tqdm(self, desc='Patients converted'):
                         img_path = pat_path[0]
@@ -237,11 +238,6 @@ class ToolBox(DataSet):
         else:
             raise TypeError('Currently only conversion from dicom -> nrrd is available')
 
-    import os
-    import SimpleITK as sitk
-    import numpy as np
-    from tqdm import tqdm
-
     def convert_nrrd_to_dicom(self, nrrd_path: str, output_dicom_dir: str):
         """
         Convert an NRRD file to a series of DICOM files using metadata from an original DICOM series.
@@ -255,29 +251,30 @@ class ToolBox(DataSet):
 
         # Read the NRRD file
         for pat, pat_path in tqdm(self, desc='Patients converted'):
-            img_path = next((p for p in pat_path if p.endswith('_img.nrrd')), None)
-            if img_path:
-                img_sitk = sitk.ReadImage(img_path)
-                # Convert the data type of the image array to int16, typically needed for medical images
-                img_arr = sitk.GetArrayFromImage(img_sitk).astype(np.int16)
-                sitk_img = sitk.GetImageFromArray(img_arr)
+            nrrd_files = [p for p in pat_path if p.endswith('.nrrd')]
+            for img_path in nrrd_files:
+                if img_path:
+                    img_sitk = sitk.ReadImage(img_path)
+                    # Convert the data type of the image array to int16, typically needed for medical images
+                    img_arr = sitk.GetArrayFromImage(img_sitk).astype(np.int16)
+                    sitk_img = sitk.GetImageFromArray(img_arr)
 
-                # Copy spacing, origin, and direction from the original image
-                sitk_img.SetSpacing(img_sitk.GetSpacing())
-                sitk_img.SetOrigin(img_sitk.GetOrigin())
-                sitk_img.SetDirection(img_sitk.GetDirection())
+                    # Copy spacing, origin, and direction from the original image
+                    sitk_img.SetSpacing(img_sitk.GetSpacing())
+                    sitk_img.SetOrigin(img_sitk.GetOrigin())
+                    sitk_img.SetDirection(img_sitk.GetDirection())
 
-                # Set necessary DICOM metadata
-                sitk_img.SetMetaData("0008|0016", "1.2.840.10008.5.1.4.1.1.2")  # SOP Class UID, e.g., CT Image Storage
-                sitk_img.SetMetaData("0008|103E", "Image converted from NRRD")  # Series Description
+                    # Set necessary DICOM metadata
+                    sitk_img.SetMetaData("0008|0016", "1.2.840.10008.5.1.4.1.1.2")  # SOP Class UID, e.g., CT Image Storage
+                    sitk_img.SetMetaData("0008|103E", "Image converted from NRRD")  # Series Description
 
-                # Get the file name
-                org_file_name = '_'.join(os.path.splitext(os.path.basename(img_path))[0].split('_')[:-1])
-
-                # Save the new DICOM file
-                output_path = os.path.join(output_dicom_dir, f"{org_file_name}_converted_img.dcm")
-                # Write the DICOM file
-                sitk.WriteImage(sitk_img, output_path)
+                    # Get the file name
+                    base_name = os.path.splitext(os.path.basename(img_path))[0]
+                    org_file_name = '_'.join(base_name.split('_')[2:])  # Adjusted index to get 'image_0'
+                    # Save the new DICOM file
+                    output_path = os.path.join(output_dicom_dir, f"{org_file_name}_converted_img.dcm")
+                    # Write the DICOM file
+                    sitk.WriteImage(sitk_img, output_path)
 
         print(f"Conversion complete. DICOM files saved to {output_dicom_dir}")
 
@@ -311,65 +308,70 @@ class ToolBox(DataSet):
 
         '''
         ####
+        mask_array = []
+        mask = None
         if hist_match and ref_img_path:
             ref_img_arr = sitk.GetArrayFromImage(sitk.ReadImage(ref_img_path))
         else:
             ref_img_arr = None
         # ref_img_arr = sitk.GetArrayFromImage(sitk.ReadImage(ref_img_path))
         for i, pat in tqdm(self):
-            image = sitk.ReadImage(pat[0])
-            mask = sitk.ReadImage(pat[1])
-            image_array = sitk.GetArrayFromImage(image)
-            mask_array = sitk.GetArrayFromImage(mask)
-            # ref_image_arr = ref_img_arr.copy()
-            # run the pre-processing
-            pre_processed_arr = self.__preprocessing_function(image_array, mask_array,
-                                                              ref_img_arr if hist_match else None,
-                                                              z_score, norm_coeff, hist_match, hist_equalize,
-                                                              binning, percentile_scaling,
-                                                              corr_bias_field, window_filtering_params,
-                                                              subcateneus_fat,
-                                                              fat_value,
-                                                              reshape, to_shape,
-                                                              verbosity, visualize, clahe_apply, clahe_clip_limit,
-                                                              clahe_tile_grid_size)
+            for image_path in pat:
+                image_name = os.path.splitext(os.path.basename(image_path))[0]
+                image = sitk.ReadImage(image_path)
+                if not self._image_only:
+                    mask = sitk.ReadImage(pat[1])
+                    mask_array = sitk.GetArrayFromImage(mask)
 
-            export_dir = os.path.join(save_path, i)
-            if not os.path.exists(export_dir):
-                os.makedirs(export_dir)
+                image_array = sitk.GetArrayFromImage(image)
 
-            pre_processed_image = sitk.GetImageFromArray(pre_processed_arr)
+                pre_processed_arr = self.__preprocessing_function(image_array, mask_array,
+                                                                  ref_img_arr if hist_match else None,
+                                                                  z_score, norm_coeff, hist_match, hist_equalize,
+                                                                  binning, percentile_scaling,
+                                                                  corr_bias_field, window_filtering_params,
+                                                                  subcateneus_fat,
+                                                                  fat_value,
+                                                                  reshape, to_shape,
+                                                                  verbosity, visualize, clahe_apply, clahe_clip_limit,
+                                                                  clahe_tile_grid_size)
 
-            ### added by me
-            if pre_processed_arr.ndim == 2:
-                # If it's 2D, we need to add back the singleton dimension to make it 3D
-                pre_processed_arr = np.expand_dims(pre_processed_arr, axis=0)  # Adds a singleton dimension at the end
+                export_dir = os.path.join(save_path, i)
+                if not os.path.exists(export_dir):
+                    os.makedirs(export_dir)
 
-            # create the SimpleITK image from the numpy array
-            pre_processed_image = sitk.GetImageFromArray(pre_processed_arr.astype(np.float32))
+                pre_processed_image = sitk.GetImageFromArray(pre_processed_arr)
 
-            # Copy the metadata from the original image
-            pre_processed_image.SetSpacing(image.GetSpacing())
-            pre_processed_image.SetOrigin(image.GetOrigin())
-            pre_processed_image.SetDirection(image.GetDirection())
+                if pre_processed_arr.ndim == 2:
+                    # If it's 2D, we need to add back the singleton dimension to make it 3D
+                    pre_processed_arr = np.expand_dims(pre_processed_arr, axis=0)  # Adds a singleton dimension at the end
 
-            #  try copying the information from the original image
-            try:
-                pre_processed_image.CopyInformation(image)
-            except Exception as e:
-                print("Failed to copy information from the original image:", e)
+                # create the SimpleITK image from the numpy array
+                pre_processed_image = sitk.GetImageFromArray(pre_processed_arr.astype(np.float32))
 
-            ##
-            sitk.WriteImage(pre_processed_image,
-                            os.path.join(export_dir, 'pre_processed_img.nrrd'))  # save image and binary mask locally
-            sitk.WriteImage(mask, os.path.join(export_dir, 'mask.nrrd'))
+                # Copy the metadata from the original image
+                pre_processed_image.SetSpacing(image.GetSpacing())
+                pre_processed_image.SetOrigin(image.GetOrigin())
+                pre_processed_image.SetDirection(image.GetDirection())
+
+                #  try copying the information from the original image
+                try:
+                    pre_processed_image.CopyInformation(image)
+                except Exception as e:
+                    print("Failed to copy information from the original image:", e)
+
+                ##
+                output_filename = f"pre_processed_{image_name}.nrrd"
+                sitk.WriteImage(pre_processed_image,
+                                os.path.join(export_dir, output_filename))  # save image and binary mask locally
+                if mask is not None:
+                    sitk.WriteImage(mask, os.path.join(export_dir, 'mask.nrrd'))
 
         params = {'ref_img_path': ref_img_path, 'save_path': save_path, 'z_score': z_score, 'norm_coeff': norm_coeff,
                   'hist_match': hist_match, 'hist_equalize': hist_equalize, 'binning': binning,
                   'percentile_scaling': percentile_scaling, 'subcateneus_fat': subcateneus_fat, 'fat_value': fat_value,
                   'verbosity': verbosity, 'visualize': visualize, 'clahe_apply': clahe_apply,
                   'clahe_clip_limit': clahe_clip_limit, 'clahe_tile_grid_size': clahe_tile_grid_size}
-
         with open(os.path.join(save_path, 'pre-processing_parameters.csv'), 'w') as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(['Pre-processing parameters:'])

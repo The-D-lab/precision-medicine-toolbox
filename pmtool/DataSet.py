@@ -55,13 +55,28 @@ class DataSet:
         if self._data_type == 'nrrd':
             for patient in tqdm(self.__patients):
                 if self._twod_image:
-                    image_path = os.path.join(self._data_path, patient, 'image.nrrd')
+                    # original
+                    temp_files = []
+                    for root, dirs, files in os.walk(os.path.join(self._data_path, patient)):
+                        for file in files:
+                            if file.endswith('.nrrd'):
+                                temp_files.append(os.path.join(root, file))
+                    if not len(temp_files):
+                        raise FileNotFoundError('No nrrd/mha data found: check the folder')
 
-                    if not self._image_only:
-                        mask_path = os.path.join(self._data_path, patient, 'mask.nrrd')
-                        self._patient_dict[patient] = [image_path, mask_path]
-                    else:
-                        self._patient_dict[patient] = [image_path]
+                    for file in temp_files:
+                            if is_in_list(self.__image_names, file.split(os.sep)[-1][:-5]):
+                                if not self._image_only:
+                                    for file in temp_files:
+                                        for mfile in temp_files:
+                                            if re.search(mask_name.lower(), mfile.lower()):
+                                                self._patient_dict[str(patient + '_' + mfile.split(os.sep)[-1][:-5])] = [
+                                                    file, mfile]  # [-20:-5]
+                                else:
+                                    if str(patient) not in self._patient_dict:
+                                        self._patient_dict[str(patient)] = [file]
+                                    else:
+                                        self._patient_dict[str(patient)].append(file)
                 else:
                     temp_files = []
                     for root, dirs, files in os.walk(os.path.join(self._data_path, patient)):
@@ -86,14 +101,22 @@ class DataSet:
         elif self._data_type == 'dcm':
             for patient in tqdm(self.__patients):
                 if self._twod_image:
-                    image_path = os.path.join(self._data_path, patient, 'image.dcm')
+                    patient_dir = os.path.join(self._data_path, patient)
 
+                    # List all .dcm files in the patient's directory
+                    dcm_files = [os.path.join(patient_dir, f) for f in os.listdir(patient_dir) if f.endswith('.dcm')]
                     if not self._image_only:
-                        mask_path = os.path.join(self._data_path, patient, 'mask.dcm')
-                        self._patient_dict[patient] = [image_path, mask_path]
+                        # Separate image and mask files
+                        image_paths = [f for f in dcm_files if 'image' in f]
+                        mask_paths = [f for f in dcm_files if 'mask' in f]
+                        self._patient_dict[patient] = {
+                            'images': image_paths,
+                            'masks': mask_paths
+                        }
                     else:
-                        self._patient_dict[patient] = [image_path]
-
+                        self._patient_dict[patient] = {
+                            'images': dcm_files
+                        }
                 else:
                     dcm_files = []
                     all_dicom_subfiles = []
@@ -106,7 +129,6 @@ class DataSet:
                                     temp_file = pydicom.read_file(os.path.join(root, file), force=True)
                                     if temp_file.Modality == 'RTSTRUCT':
                                         all_dicom_subfiles.append(os.path.join(root, file))
-                        print(len(all_dicom_subfiles))
 
                     for root, dirs, files in os.walk(os.path.join(self._data_path, patient)):
                         for file in files:

@@ -8,7 +8,8 @@ def convert_to_nrrd(data_path, export_path, data_type, multi_rts_per_pat, twod_i
         'data_path': data_path,
         'data_type': data_type,
         'multi_rts_per_pat': multi_rts_per_pat,
-        'twod_image': twod_image
+        'twod_image': twod_image,
+        'image_only': True
     }
     dataset = ToolBox(**parameters)
     dataset.convert_to_nrrd(export_path)
@@ -22,7 +23,7 @@ def preprocess(data_path, save_path):
                   'multi_rts_per_pat': False,
                   'twod_image': True}  # when False, it will look only
 
-    mg_nnrd = ToolBox(data_path, data_type='nrrd')
+    mg_nnrd = ToolBox(data_path, data_type='nrrd', twod_image='True',image_only='True')
 
     mg_nnrd.pre_process(
         save_path=save_path,
@@ -36,7 +37,7 @@ def preprocess(data_path, save_path):
 def convert_nrrd_to_dicom(nrrd_path, output_dicom_dir):
     os.makedirs(output_dicom_dir, exist_ok=True)
 
-    dataset = ToolBox(data_path=nrrd_path, data_type='nrrd')
+    dataset = ToolBox(data_path=nrrd_path, data_type='nrrd', twod_image='True',image_only='True')
     dataset.convert_nrrd_to_dicom(nrrd_path=nrrd_path, output_dicom_dir=output_dicom_dir)
 
 
