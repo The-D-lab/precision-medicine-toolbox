@@ -4,7 +4,7 @@ services:
   toolbox:
     build: .
     volumes:
-      - F:/Projects/toolbox_testing/data_dicom/data:/app/data
+      - images_folder_path/data:/app/data
     environment:
       DATA_PATH: /app/data
       DATA_TYPE: dcm

@@ -7,7 +7,7 @@ long_description = (this_directory / "README.md").read_text()
 setup(
   name = 'precision-medicine-toolbox',         # How you named your package folder (MyLib)
   packages = ['pmtool'],   # Chose the same as "name"
-  version = '0.11',      # Start with a small number and increase it with every change you make
+  version = '0.12',      # Start with a small number and increase it with every change you make
   license='bsd-3-clause',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'Precision medicine tool-box for medical imaging research',   # Give a short description about your library
   long_description=long_description,
